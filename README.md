@@ -162,7 +162,7 @@ Best mid-range test metrics on SQuAD 1.1 but worst TriviaQA validation metrics. 
 
 #### All Experiments
 
-As expected, F1 outperforms exact match in all cases.  In most experiments, the metrics and loss peak early, but stabilize later at a slightly lower level.  In experiment 5, however, loss continues to lower throughout, even when its best metrics drop slightly from early on.
+As expected, F1 outperforms exact match in all cases.  In most experiments, the metrics and loss peak early, but stabilize later at a slightly lower level.  In experiment 5, however, loss continues to lower throughout, even when its best metrics drop slightly from early on.  The later models would seem to provide the best generalization, as evidenced by experiments 13-24.
 
 #### Training with Non-Answerable Questions
 
