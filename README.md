@@ -6,7 +6,7 @@ This exists as a repository for ten experiments performed on Huggingface models 
 
 This repo contains the configurations for downloading and fine-tuning BioBERT, too, but no experiment is set up for it and it has not been tested.
 
-*All F1 and exact match results are very low due to using only a small subset of training examples (20000) and eval and test examples (5000).*
+*All F1 and exact match results are very low due to using only a small subset of training examples (20000) and eval and test examples (5000).  It is fully possible that any difference in similar metrics is noise.*
 
 
 
@@ -128,7 +128,7 @@ Uses aggressive learning rate and weight decay.  Loss peaks early and remains hi
 
 #### Experiment 1
 
-Exists as a baseline with standard hyperparameters.  LR 1e-5, weight decay 1e-8, gradient clip \[-1, 1], and AdamW Torch Fused optimizer.
+Exists as a baseline with standard hyperparameters.  2 epochs, LR 1e-5, weight decay 1e-8, gradient clip \[-1, 1], and AdamW Torch Fused optimizer.
 
 #### Experiment 2
 
@@ -140,19 +140,23 @@ Better results than experiments 1 or 2 with gradient clipped to \[0, 0].
 
 #### Experiment 5
 
-
+Better results than any previous experiments.  Runs for 3 epochs instead of 2.
 
 #### Experiment 10
 
+Worst test metrics (DistilBERT trained on SQuAD 2.0, tested on TriviaQA), second-best and excellent validation metrics on SQuAD dataset (roughly 10.5x better than normal).
 
 ### Excellent Results
 
 #### Experiment 6
 
-
+Best test metrics against SQuAD 1.1 and best TriviaQA-trained validation metrics.  Uses a weight decay of 1e-7, ten times greater than baseline.
 
 #### Experiment 8
 
+Best validation metrics (11x greater than baseline) and 
+
+#### Experiment 9
 
 
 #### Experiment 9
