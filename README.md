@@ -104,6 +104,8 @@ The directory pathways in paths.py must be altered to fit your own setup and des
 
 ## Brief Results
 
+All seeds are set to *The Answer*: 42.
+
 ### Poor Results
 
 #### Experiment 4
@@ -118,11 +120,11 @@ Uses aggressive learning rate and weight decay.  Loss peaks early and remains hi
 
 #### Experiment 1
 
-
+Exists as a baseline with standard hyperparameters.  LR 1e-5, weight decay 1e-8, gradient clip [-1, 1], and AdamW Torch Fused optimizer.
 
 #### Experiment 2
 
-
+Slightly better results than experiment 1 by clipping all gradients to [-0.5, 0.5].
 
 #### Experiment 3
 
@@ -135,4 +137,15 @@ Uses aggressive learning rate and weight decay.  Loss peaks early and remains hi
 #### Experiment 10
 
 
+### Excellent Results
+
+#### Experiment 6
+
+
+
+#### Experiment 8
+
+
+
+#### Experiment 9
 
