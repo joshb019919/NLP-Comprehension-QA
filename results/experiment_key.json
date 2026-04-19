@@ -1,0 +1,214 @@
+[
+  {
+    "exp01": {
+      "model": "BERT-base",
+      "train": "TriviaQA",
+      "eval": "TriviaQA",
+      "test": "SQuAD 1.1",
+      "epochs": 2,
+      "learning_rate": 5e-05,
+      "weight_decay": 1e-08,
+      "max_grad_norm": 1.0,
+      "optimizer": "adamw_torch_fused",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42
+    }
+  },
+  {
+    "exp02": {
+      "model": "BERT-base",
+      "train": "TriviaQA",
+      "eval": "TriviaQA",
+      "test": "SQuAD 1.1",
+      "epochs": 2,
+      "learning_rate": 5e-05,
+      "weight_decay": 1e-08,
+      "max_grad_norm": 0.5,
+      "optimizer": "adamw_torch_fused",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42
+    }
+  },
+  {
+    "exp03": {
+      "model": "BERT-base",
+      "train": "TriviaQA",
+      "eval": "TriviaQA",
+      "test": "SQuAD 1.1",
+      "epochs": 2,
+      "learning_rate": 5e-05,
+      "weight_decay": 1e-08,
+      "max_grad_norm": 0,
+      "optimizer": "adamw_torch_fused",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42
+    }
+  },
+  {
+    "exp04": {
+      "model": "BERT-base",
+      "train": "TriviaQA",
+      "eval": "TriviaQA",
+      "test": "SQuAD 1.1",
+      "epochs": 2,
+      "learning_rate": 5e-05,
+      "weight_decay": 1e-08,
+      "max_grad_norm": 1.0,
+      "optimizer": "sgd",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42
+    }
+  },
+  {
+    "exp05": {
+      "model": "BERT-base",
+      "train": "TriviaQA",
+      "eval": "TriviaQA",
+      "test": "SQuAD 1.1",
+      "epochs": 3,
+      "learning_rate": 5e-05,
+      "weight_decay": 1e-08,
+      "max_grad_norm": 1.0,
+      "optimizer": "adamw_torch_fused",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42
+    }
+  },
+  {
+    "exp06": {
+      "model": "BERT-base",
+      "train": "TriviaQA",
+      "eval": "TriviaQA",
+      "test": "SQuAD 1.1",
+      "epochs": 2,
+      "learning_rate": 5e-05,
+      "weight_decay": 1e-07,
+      "max_grad_norm": 1.0,
+      "optimizer": "adamw_torch_fused",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42
+    }
+  },
+  {
+    "exp07": {
+      "model": "BERT-base",
+      "train": "TriviaQA",
+      "eval": "TriviaQA",
+      "test": "SQuAD 1.1",
+      "epochs": 2,
+      "learning_rate": 0.005,
+      "weight_decay": 1e-05,
+      "max_grad_norm": 1.0,
+      "optimizer": "adamw_torch_fused",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42
+    }
+  },
+  {
+    "exp08": {
+      "model": "BERT-base",
+      "train": "SQuAD 2.0",
+      "eval": "SQuAD 2.0",
+      "test": "TriviaQA",
+      "epochs": 2,
+      "learning_rate": 5e-05,
+      "weight_decay": 1e-08,
+      "max_grad_norm": 1.0,
+      "optimizer": "adamw_torch_fused",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42,
+      "null_score_diff_threshold": -2.0
+    }
+  },
+  {
+    "exp09": {
+      "model": "DistilBERT",
+      "train": "TriviaQA",
+      "eval": "TriviaQA",
+      "test": "SQuAD 1.1",
+      "epochs": 2,
+      "learning_rate": 5e-05,
+      "weight_decay": 1e-08,
+      "max_grad_norm": 1.0,
+      "optimizer": "adamw_torch_fused",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42
+    }
+  },
+  {
+    "exp10": {
+      "model": "DistilBERT",
+      "train": "SQuAD 2.0",
+      "eval": "SQuAD 2.0",
+      "test": "TriviaQA",
+      "epochs": 2,
+      "learning_rate": 5e-05,
+      "weight_decay": 1e-08,
+      "max_grad_norm": 1.0,
+      "optimizer": "adamw_torch_fused",
+      "max_length": 384,
+      "doc_stride": 64,
+      "batch_size": 64,
+      "after_tokenization_limit": null,
+      "after_tokenization_train_limit": 20000,
+      "after_tokenization_validation_limit": 5000,
+      "after_tokenization_test_limit": 5000,
+      "seed": 42,
+      "null_score_diff_threshold": -2.0
+    }
+  }
+]

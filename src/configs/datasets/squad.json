@@ -1,0 +1,11 @@
+{
+  "dataset_name": "rajpurkar/squad",
+  "dataset_config_name": null,
+  "train_split": "train",
+  "validation_split": "validation",
+  "test_split": null,
+  "version_2_with_negative": false,
+  "null_score_diff_threshold": 0.0,
+  "expand_triviaqa_contexts": false,
+  "filter_no_answer_rows_for_training": true
+}
