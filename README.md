@@ -30,30 +30,33 @@ This repo contains the configurations for downloading and fine-tuning BioBERT, t
 - SQuAD 2.0 (rajpurkar/squad_v2).
   - 150K examples (SQuAD 1.1 + 50K unanaswerable, train and validation).
  
+### Terms
+ 
 - SQuAD --- Stanford Question and Answering Dataset.
 - BERT --- bidirectional encoder representations from transformers.
 - BioBERT --- BERT for Biomedical Text Mining.
 
 ## Important Paths
 
-/ (root)
+### / (root)
+
 - Smoke-test runner, `run.sh`.
 - Full experiment runner, `run_experiments.sh`.
 - Virtual environment setup runners for Windows or Linux, `setup_venv_bertqa.bat` and `setup_venv_bertqa.sh`.
 - Special scripts to run validation or testing separately, in case these runs fail for any experiment.
 
-plotter/
+### plotter/
 
 - Matplotlib plotting engine, `plot_benchmarks.py`.
 
-results/
+### results/
 
 - A JSON file detailing experiment settings.
 - Figures visualizing exact match, f1, and loss scores for each experiment.
 - Figures plotting metric scores against inverted, normalized loss.
 - An analysis text detailing any importance of comparing loss and metrics.
 
-src/
+### src/
 
 - JSON configurations for each model, datset, and experiment run.
 - Python scripts for running the experiments.
