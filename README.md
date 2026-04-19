@@ -6,7 +6,9 @@ This exists as a repository for ten experiments performed on Huggingface models 
 
 This repo contains the configurations for downloading and fine-tuning BioBERT, too, but no experiment is set up for it and it has not been tested.
 
-## Huggingface Models and Databases
+## Huggingface Models and Datasets
+
+### Models
 
 - BERT (bert-base-uncased).
   - Basic transformer-based natural language processing model.
@@ -18,6 +20,8 @@ This repo contains the configurations for downloading and fine-tuning BioBERT, t
 - BioBERT (dmis-lab/biobert-base-cased-v1.1).
   - Used in biomedical research learning.
   - Pretrained on PubMed and PMC articles.
+ 
+### Datasets
 
 - TriviaQA (mandarjoshi/trivia_qa).
   - 173K examples (train, validation, test splits).
