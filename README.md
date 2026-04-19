@@ -79,8 +79,22 @@ The directory pathways in paths.py must be altered to fit your own setup and des
 
 ## Main Entrypoints
 
+### Run an individual experiment:
+
 - `python src/main.py [--run-config src/configs/runs/<run-config>.json] [--set <override-config-name>=<value>]`.
+
+### Run the smoke test:
+
 - `./run.sh`.
+
+### Run all experiments:
+
 - `./run_experiments.sh`.
+
+### Run validation only over all experiments:
+
 - `python val_only.py`.
+
+### Run test only over all experiments:
+
 - `python test_only.py`.
