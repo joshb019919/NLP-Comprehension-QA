@@ -8,6 +8,8 @@ This repo contains the configurations for downloading and fine-tuning BioBERT, t
 
 *All F1 and exact match results are very low due to using only a small subset of training examples (20000) and eval and test examples (5000).*
 
+
+
 ## Huggingface Models and Datasets
 
 ### Models
@@ -38,6 +40,8 @@ This repo contains the configurations for downloading and fine-tuning BioBERT, t
 - BERT --- bidirectional encoder representations from transformers.
 - BioBERT --- BERT for Biomedical Text Mining.
 - EM --- exact match metric for perfectly matching predicted answer text to ground truth for that example.
+
+
 
 ## Important Paths
 
@@ -80,6 +84,8 @@ This repo contains the configurations for downloading and fine-tuning BioBERT, t
 
 The directory pathways in paths.py must be altered to fit your own setup and desired save location(s).
 
+
+
 ## Main Entrypoints
 
 ### Run an individual experiment:
@@ -102,6 +108,8 @@ The directory pathways in paths.py must be altered to fit your own setup and des
 
 - `python test_only.py`.
 
+
+
 ## Brief Results
 
 All seeds are set to *The Answer*: 42.
@@ -120,15 +128,15 @@ Uses aggressive learning rate and weight decay.  Loss peaks early and remains hi
 
 #### Experiment 1
 
-Exists as a baseline with standard hyperparameters.  LR 1e-5, weight decay 1e-8, gradient clip [-1, 1], and AdamW Torch Fused optimizer.
+Exists as a baseline with standard hyperparameters.  LR 1e-5, weight decay 1e-8, gradient clip \[-1, 1], and AdamW Torch Fused optimizer.
 
 #### Experiment 2
 
-Slightly better results than experiment 1 by clipping all gradients to [-0.5, 0.5].
+Slightly better results than experiment 1 by clipping all gradients to \[-0.5, 0.5].
 
 #### Experiment 3
 
-
+Better results than experiments 1 or 2 with gradient clipped to \[0, 0].
 
 #### Experiment 5
 
