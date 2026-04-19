@@ -6,6 +6,30 @@ This exists as a repository for ten experiments performed on Huggingface models 
 
 This repo contains the configurations for downloading and fine-tuning BioBERT, too, but no experiment is set up for it and it has not been tested.
 
+## Huggingface Models and Databases
+
+- BERT (bert-base-uncased).
+  - Basic transformer-based natural language processing model.
+  - Text vectors with self-supervised learning.
+  - Originally pre-trained on Wikipedia and BookCorpus.
+- DistilBERT (distilbert-base-uncased).
+  - Smaller and faster than BERT, with small accuracy loss.
+  - No token-type embeddings (fast and lightweight, poor at next-sentence prediction).
+- BioBERT (dmis-lab/biobert-base-cased-v1.1).
+  - Used in biomedical research learning.
+  - Pretrained on PubMed and PMC articles.
+
+- TriviaQA (mandarjoshi/trivia_qa).
+  - 173K examples (train, validation, test splits).
+- SQuAD 1.1 (rajpurkar/squad).
+  - 100K examples (train, validation splits, all answerable).
+- SQuAD 2.0 (rajpurkar/squad_v2).
+  - 150K examples (SQuAD 1.1 + 50K unanaswerable, train and validation).
+ 
+- SQuAD --- Stanford Question and Answering Dataset.
+- BERT --- bidirectional encoder representations from transformers.
+- BioBERT --- BERT for Biomedical Text Mining.
+
 ## Important Paths
 
 / (root)
