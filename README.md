@@ -35,6 +35,7 @@ This repo contains the configurations for downloading and fine-tuning BioBERT, t
 - SQuAD --- Stanford Question and Answering Dataset.
 - BERT --- bidirectional encoder representations from transformers.
 - BioBERT --- BERT for Biomedical Text Mining.
+- EM --- exact match metric for perfectly matching predicted answer text to ground truth for that example.
 
 ## Important Paths
 
@@ -98,3 +99,38 @@ The directory pathways in paths.py must be altered to fit your own setup and des
 ### Run test only over all experiments:
 
 - `python test_only.py`.
+
+## Brief Results
+
+### Poor Results
+
+#### Experiment 4
+
+Used stochastic gradient descent with momentum.  Loss reveals early peak, SGD with momentum is not the appropriate optimizer for transformers.
+
+#### Experiment 7
+
+Uses aggressive learning rate and weight decay.  Loss peaks early and remains high.  No real improvement in EM or F1 over baseline.
+
+### Moderate Results
+
+#### Experiment 1
+
+
+
+#### Experiment 2
+
+
+
+#### Experiment 3
+
+
+
+#### Experiment 5
+
+
+
+#### Experiment 10
+
+
+
