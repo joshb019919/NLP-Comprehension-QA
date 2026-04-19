@@ -154,10 +154,16 @@ Best test metrics against SQuAD 1.1 and best TriviaQA-trained validation metrics
 
 #### Experiment 8
 
-Best validation metrics (11x greater than baseline) and 
+Best SQuAD-trained validation metrics (11x greater than baseline) and good test metrics against TriviaQA.  SQuAD 2.0 on BERT.
 
 #### Experiment 9
 
+Best mid-range test metrics on SQuAD 1.1 but worst TriviaQA validation metrics.  TriviaQA on DistilBERT.
 
-#### Experiment 9
+#### All Experiments
 
+As expected, F1 outperforms exact match in all cases.  In most experiments, the metrics and loss peak early, but stabilize later at a slightly lower level.  In experiment 5, however, loss continues to lower throughout, even when its best metrics drop slightly from early on.
+
+#### Training with Non-Answerable Questions
+
+Experiments 8 and 10, SQuAD 2.0 on BERT and DistilBERT, have very high no-answer and low has-answer exact match and F1 scores.  NoAns exact and F1 are nearly 90% and HasAns metrics are between 15% and 30%.  This has led to their average/simple exact and F1 scores much higher than any of the other experiments at around 56% (exp8) and 53% (exp10).  Both average EM and F1 for both experiments relate strongly with their inverted, z-score-normalized losses, signifying that the model's training signal alone is a good match for these desired metrics.  This also suggests that the models are not just becoming more confident, but more correct.
