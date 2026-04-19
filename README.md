@@ -76,3 +76,11 @@ This repo contains the configurations for downloading and fine-tuning BioBERT, t
   - train.py (main training logic).
 
 The directory pathways in paths.py must be altered to fit your own setup and desired save location(s).
+
+## Main Entrypoints
+
+- `python src/main.py [--run-config src/configs/runs/<run-config>.json] [--set <override-config-name>=<value>]`.
+- `./run.sh`.
+- `./run_experiments.sh`.
+- `python val_only.py`.
+- `python test_only.py`.
