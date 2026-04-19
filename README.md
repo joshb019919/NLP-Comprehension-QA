@@ -6,6 +6,8 @@ This exists as a repository for ten experiments performed on Huggingface models 
 
 This repo contains the configurations for downloading and fine-tuning BioBERT, too, but no experiment is set up for it and it has not been tested.
 
+*All F1 and exact match results are very low due to using only a small subset of training examples (20000) and eval and test examples (5000).*
+
 ## Huggingface Models and Datasets
 
 ### Models
