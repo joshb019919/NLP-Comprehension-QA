@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REQ_FILE="$SCRIPT_DIR/src/qa_hf_package/requirements.txt"
+REQ_FILE="$SCRIPT_DIR/requirements.txt"
 VENV_DIR="$SCRIPT_DIR/.venv_bertqa"
 
 if [[ ! -f "$REQ_FILE" ]]; then
@@ -45,6 +45,7 @@ source "$ACTIVATE_SCRIPT"
 
 echo "Installing pinned requirements from $REQ_FILE"
 python -m pip install --upgrade pip setuptools wheel
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
 python -m pip install -r "$REQ_FILE"
 
 echo

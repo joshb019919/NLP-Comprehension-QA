@@ -5,840 +5,686 @@ import argparse
 import json
 import math
 import re
-import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import textwrap
 
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
-from matplotlib.ticker import MaxNLocator
 import numpy as np
 
 
-EXPERIMENT_RE = re.compile(r"exp0?(\d+)", re.IGNORECASE)
+DEFAULT_BENCH_ROOT = Path("/data/data/huggingface/bench")
+DEFAULT_OUTPUT_ROOT = Path("results/experiment_plots")
 
-EVAL_SERIES_SPECS = [
-    ("exact", ("eval_exact", "eval_exact_match"), "Exact"),
-    ("f1", ("eval_f1",), "F1"),
+LOSS_METRICS = ["loss"]
+PREDICT_VALIDATION_METRICS = ["eval_loss"]
+CORE_EVAL_METRICS = ["eval_exact", "eval_exact_match", "eval_f1"]
+SQUAD_V2_EVAL_METRICS = [
+    "eval_HasAns_exact",
+    "eval_HasAns_f1",
+    "eval_NoAns_exact",
+    "eval_NoAns_f1",
 ]
 
-OPTIONAL_ANS_SERIES_SPECS = [
-    ("hasans_exact", ("eval_HasAns_exact",), "HasAns Exact"),
-    ("hasans_f1", ("eval_HasAns_f1",), "HasAns F1"),
-    ("noans_exact", ("eval_NoAns_exact",), "NoAns Exact"),
-    ("noans_f1", ("eval_NoAns_f1",), "NoAns F1"),
-]
-
-FINAL_EVAL_METRIC_SPECS = [
-    ("exact", ("eval_exact", "eval_exact_match"), "Exact"),
-    ("f1", ("eval_f1",), "F1"),
-    ("hasans_exact", ("eval_HasAns_exact",), "HasAns Exact"),
-    ("hasans_f1", ("eval_HasAns_f1",), "HasAns F1"),
-    ("noans_exact", ("eval_NoAns_exact",), "NoAns Exact"),
-    ("noans_f1", ("eval_NoAns_f1",), "NoAns F1"),
-]
-
-FINAL_TEST_METRIC_SPECS = [
-    ("exact", ("test_exact", "test_exact_match"), "Exact"),
-    ("f1", ("test_f1",), "F1"),
-    ("hasans_exact", ("test_HasAns_exact",), "HasAns Exact"),
-    ("hasans_f1", ("test_HasAns_f1",), "HasAns F1"),
-    ("noans_exact", ("test_NoAns_exact",), "NoAns Exact"),
-    ("noans_f1", ("test_NoAns_f1",), "NoAns F1"),
+DROP_SUFFIXES = ("_per_second", "_total", "_missing", "_thresh", "_runtime")
+DROP_EXACT_KEYS = {"elapsed_seconds"}
+LINE_COLORS = {
+    "exact": "#ff7f0e",
+    "f1": "#1f77b4",
+    "loss": "#2ca02c",
+    "hasans_exact": "#d62728",
+    "hasans_f1": "#9467bd",
+    "noans_exact": "#8c564b",
+    "noans_f1": "#e377c2",
+}
+OVERALL_METRIC_COLOR_PAIRS = [
+    ("#1f77b4", "#6baed6"),
+    ("#ff7f0e", "#fdae6b"),
+    ("#2ca02c", "#74c476"),
+    ("#d62728", "#fb6a4a"),
+    ("#9467bd", "#bcbddc"),
+    ("#8c564b", "#c49c94"),
+    ("#e377c2", "#f7b6d2"),
+    ("#7f7f7f", "#c7c7c7"),
 ]
 
 
 @dataclass
-class ExperimentMeta:
-    number: int
-    run_name: str
-    run_config_path: Path | None
-    overrides: list[str]
-    model_name: str
-    train_dataset: str
-    eval_dataset: str
-    test_dataset: str | None
-    epochs: int | float | None
-    learning_rate: float | None
-    weight_decay: float | None
-    max_grad_norm: float | None
-    optimizer: str | None
-    null_score_diff_threshold: float | None
-    max_length: int | None
-    doc_stride: int | None
-    batch_size: int | None
-    after_tokenization_limit: int | None
-    after_tokenization_train_limit: int | None
-    after_tokenization_validation_limit: int | None
-    after_tokenization_test_limit: int | None
-    seed: int | None
-
-    @property
-    def short_name(self) -> str:
-        return f"exp{self.number:02d}"
-
-    @property
-    def eval_subtitle(self) -> str:
-        return (
-            f"Model: {humanize_name(self.model_name)} | "
-            f"Train: {humanize_name(self.train_dataset)} | "
-            f"Eval: {humanize_name(self.eval_dataset)} | "
-            f"Ep: {format_value(self.epochs)} | "
-            f"LR: {format_value(self.learning_rate)} | "
-            f"WD: {format_value(self.weight_decay)}"
-        )
-
-    @property
-    def test_subtitle(self) -> str:
-        dataset = self.test_dataset or self.eval_dataset
-        return (
-            f"Model: {humanize_name(self.model_name)} | "
-            f"Train: {humanize_name(self.train_dataset)} | "
-            f"Test: {humanize_name(dataset)} | "
-            f"Ep: {format_value(self.epochs)} | "
-            f"LR: {format_value(self.learning_rate)} | "
-            f"WD: {format_value(self.weight_decay)}"
-        )
-
-    def key_payload(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "model": humanize_name(self.model_name),
-            "train": humanize_name(self.train_dataset),
-            "eval": humanize_name(self.eval_dataset),
-            "test": humanize_name(self.test_dataset) if self.test_dataset else None,
-            "epochs": self.epochs,
-            "learning_rate": self.learning_rate,
-            "weight_decay": self.weight_decay,
-            "max_grad_norm": self.max_grad_norm,
-            "optimizer": self.optimizer,
-            "max_length": self.max_length,
-            "doc_stride": self.doc_stride,
-            "batch_size": self.batch_size,
-            "after_tokenization_limit": self.after_tokenization_limit,
-            "after_tokenization_train_limit": self.after_tokenization_train_limit,
-            "after_tokenization_validation_limit": self.after_tokenization_validation_limit,
-            "after_tokenization_test_limit": self.after_tokenization_test_limit,
-            "seed": self.seed,
-        }
-        if self.train_dataset == "rajpurkar/squad_v2" or self.eval_dataset == "rajpurkar/squad_v2":
-            payload["null_score_diff_threshold"] = self.null_score_diff_threshold
-        return payload
+class ExperimentData:
+    name: str
+    path: Path
+    bench_rows: list[dict[str, Any]]
+    best_rows: list[dict[str, Any]]
+    final_rows: list[dict[str, Any]]
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Plot benchmark JSONL files for all experiments.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate per-experiment and cross-experiment matplotlib charts from "
+            "benchmark JSONL files."
+        )
+    )
     parser.add_argument(
         "--bench-root",
         type=Path,
-        default=None,
-        help="Path to the bench directory. If omitted, common locations are auto-detected.",
-    )
-    parser.add_argument(
-        "--run-script",
-        type=Path,
-        default=Path("run_experiments.sh"),
-        help="Path to run_experiments.sh for experiment metadata.",
+        default=DEFAULT_BENCH_ROOT,
+        help="Directory containing experiment subdirectories with bench.jsonl/best.jsonl/final.jsonl.",
     )
     parser.add_argument(
         "--output-root",
         type=Path,
-        default=Path("results"),
-        help="Directory where plot outputs should be written.",
+        default=DEFAULT_OUTPUT_ROOT,
+        help="Directory where plots will be written.",
     )
     return parser.parse_args()
 
 
-def detect_bench_root(explicit: Path | None) -> Path:
-    candidates = []
-    if explicit is not None:
-        candidates.append(explicit)
-    candidates.extend(
-        [
-            Path("/data/data/huggingface/bench"),
-            Path.home() / "data/huggingface/bench",
-        ]
-    )
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError(
-        "Could not find a benchmark root. Tried: "
-        + ", ".join(str(candidate) for candidate in candidates)
-    )
+def load_jsonl_records(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not path.exists():
+        return rows
+
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            record = json.loads(line)
+            if len(record) != 1:
+                continue
+            _, payload = next(iter(record.items()))
+            if isinstance(payload, dict):
+                rows.append(payload)
+    return rows
 
 
-def parse_cli_value(raw: str) -> Any:
-    lowered = raw.lower()
-    if lowered in {"true", "false"}:
-        return lowered == "true"
-    if lowered in {"none", "null"}:
-        return None
-    try:
-        return int(raw)
-    except ValueError:
-        try:
-            return float(raw)
-        except ValueError:
-            return raw
+def discover_experiments(bench_root: Path) -> list[ExperimentData]:
+    experiments: list[ExperimentData] = []
+    if not bench_root.exists():
+        return experiments
 
-
-def apply_override(mapping: dict[str, Any], dotted_key: str, raw_value: str) -> None:
-    cursor = mapping
-    parts = dotted_key.split(".")
-    for part in parts[:-1]:
-        cursor = cursor.setdefault(part, {})
-    cursor[parts[-1]] = parse_cli_value(raw_value)
-
-
-def read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def resolve_config_path(raw_path: str, base_dir: Path | None = None) -> Path:
-    candidates: list[Path] = []
-    raw = Path(raw_path)
-    if raw.is_absolute():
-        candidates.append(raw)
-    if base_dir is not None:
-        candidates.append(base_dir / raw)
-    candidates.append(raw)
-    candidates.append(Path("src") / raw)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError(f"Could not resolve config path: {raw_path}")
-
-
-def load_run_metadata(run_script_path: Path) -> dict[int, ExperimentMeta]:
-    lines = run_script_path.read_text(encoding="utf-8").splitlines()
-    blocks: list[str] = []
-    i = 0
-    while i < len(lines):
-        raw = lines[i]
-        stripped = raw.lstrip()
-        if "run_exp " not in stripped:
-            i += 1
-            continue
-        block_lines = []
-        while i < len(lines):
-            candidate = lines[i].strip()
-            if candidate.startswith("#"):
-                candidate = candidate[1:].lstrip()
-            block_lines.append(candidate.rstrip("\\").rstrip())
-            if not lines[i].rstrip().endswith("\\"):
-                break
-            i += 1
-        blocks.append(" ".join(part for part in block_lines if part))
-        i += 1
-
-    metadata: dict[int, ExperimentMeta] = {}
-    for block in blocks:
-        tokens = shlex.split(block)
-        if len(tokens) < 3 or tokens[0] != "run_exp":
-            continue
-        run_name = tokens[1]
-        run_config_path = resolve_config_path(tokens[2], run_script_path.parent)
-        match = EXPERIMENT_RE.search(run_name)
-        if not match:
-            continue
-        exp_number = int(match.group(1))
-        overrides: list[str] = []
-        idx = 3
-        while idx < len(tokens):
-            if tokens[idx] == "--set" and idx + 1 < len(tokens):
-                overrides.append(tokens[idx + 1])
-                idx += 2
-            else:
-                idx += 1
-
-        run_cfg = read_json(run_config_path)
-        model_cfg = read_json(resolve_config_path(run_cfg["model_config_path"], run_config_path.parent))
-        dataset_cfg = read_json(resolve_config_path(run_cfg["dataset_config_path"], run_config_path.parent))
-        merged = {
-            "model": model_cfg,
-            "dataset": dataset_cfg,
-            "run": {k: v for k, v in run_cfg.items() if k not in {"model_config_path", "dataset_config_path"}},
-        }
-        for override in overrides:
-            dotted_key, raw_value = override.split("=", 1)
-            apply_override(merged, dotted_key, raw_value)
-
-        model_name = merged["model"].get("model_name_or_path", "unknown")
-        train_dataset = merged["dataset"].get("dataset_name", "unknown")
-        eval_dataset = merged["dataset"].get("validation_dataset_name") or merged["dataset"].get("dataset_name", "unknown")
-        test_dataset = merged["dataset"].get("test_dataset_name")
-        metadata[exp_number] = ExperimentMeta(
-            number=exp_number,
-            run_name=run_name,
-            run_config_path=run_config_path,
-            overrides=overrides,
-            model_name=model_name,
-            train_dataset=train_dataset,
-            eval_dataset=eval_dataset,
-            test_dataset=test_dataset,
-            epochs=merged["run"].get("epochs"),
-            learning_rate=merged["run"].get("learning_rate"),
-            weight_decay=merged["run"].get("weight_decay"),
-            max_grad_norm=merged["run"].get("max_grad_norm"),
-            optimizer=merged["run"].get("optim"),
-            null_score_diff_threshold=merged["dataset"].get("null_score_diff_threshold"),
-            max_length=merged["run"].get("max_length"),
-            doc_stride=merged["run"].get("doc_stride"),
-            batch_size=merged["run"].get("batch_size"),
-            after_tokenization_limit=merged["run"].get("after_tokenization_limit"),
-            after_tokenization_train_limit=merged["run"].get("after_tokenization_train_limit"),
-            after_tokenization_validation_limit=merged["run"].get("after_tokenization_validation_limit"),
-            after_tokenization_test_limit=merged["run"].get("after_tokenization_test_limit"),
-            seed=merged["run"].get("seed"),
+    for experiment_dir in sorted(path for path in bench_root.iterdir() if path.is_dir()):
+        experiments.append(
+            ExperimentData(
+                name=experiment_dir.name,
+                path=experiment_dir,
+                bench_rows=load_jsonl_records(experiment_dir / "bench.jsonl"),
+                best_rows=load_jsonl_records(experiment_dir / "best.jsonl"),
+                final_rows=load_jsonl_records(experiment_dir / "final.jsonl"),
+            )
         )
-    return metadata
+    return experiments
 
 
-def humanize_name(raw: str | None) -> str:
-    if not raw:
-        return "N/A"
-    replacements = {
-        "bert-base-uncased": "BERT-base",
-        "distilbert-base-uncased": "DistilBERT",
-        "rajpurkar/squad": "SQuAD 1.1",
-        "rajpurkar/squad_v2": "SQuAD 2.0",
-        "mandarjoshi/trivia_qa": "TriviaQA",
-        "mandarjoshi/trivia_qa/rc": "TriviaQA RC",
-        "rc": "RC",
+def unique_in_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        ordered.append(value)
+    return ordered
+
+
+def display_experiment_name(name: str) -> str:
+    return re.sub(r"_[0-9a-f]{12}$", "", name)
+
+
+def experiment_number(name: str) -> str:
+    match = re.match(r"(exp\d+)", display_experiment_name(name))
+    return match.group(1) if match else display_experiment_name(name)
+
+
+def canonical_metric_name(metric: str) -> str:
+    aliases = {
+        "eval_exact_match": "eval_exact",
+        "test_exact_match": "test_exact",
     }
-    if raw in replacements:
-        return replacements[raw]
-    if raw.endswith("/squad"):
-        return "SQuAD 1.1"
-    if raw.endswith("/squad_v2"):
-        return "SQuAD 2.0"
-    if raw.endswith("/trivia_qa"):
-        return "TriviaQA"
-    return raw
+    return aliases.get(metric, metric)
 
 
-def format_value(value: Any) -> str:
-    if value is None:
-        return "N/A"
-    if isinstance(value, float):
-        return f"{value:.6g}"
-    return str(value)
+def should_drop_metric(metric: str) -> bool:
+    if metric in DROP_EXACT_KEYS:
+        return True
+    return any(metric.endswith(suffix) for suffix in DROP_SUFFIXES)
 
 
-def load_bench_events(bench_file: Path) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
-    for line in bench_file.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
+def is_hasans_noans_metric(metric: str) -> bool:
+    return "_HasAns_" in metric or "_NoAns_" in metric
+
+
+def normalized_row(row: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in row.items():
+        canonical = canonical_metric_name(key)
+        result[canonical] = value
+    return result
+
+
+def filter_log_rows(rows: list[dict[str, Any]], metrics: list[str]) -> list[dict[str, Any]]:
+    return filter_event_rows(rows, "log", metrics)
+
+
+def filter_event_rows(rows: list[dict[str, Any]], event_name: str, metrics: list[str]) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    canonical_metrics = {canonical_metric_name(metric) for metric in metrics}
+    for row in rows:
+        row = normalized_row(row)
+        if row.get("event") != event_name:
             continue
-        payload = json.loads(line)
-        if not payload:
+        if "step" not in row:
             continue
-        inner = next(iter(payload.values()))
-        events.append(inner)
-    return events
+        if any(metric in row for metric in canonical_metrics):
+            filtered.append(row)
+    return filtered
 
 
-def choose_metric_value(payload: dict[str, Any], keys: tuple[str, ...]) -> float | None:
-    for key in keys:
-        value = payload.get(key)
-        if isinstance(value, (int, float)):
-            return float(value)
+def extract_series(rows: list[dict[str, Any]], metric: str) -> tuple[list[float], list[float]]:
+    canonical = canonical_metric_name(metric)
+    xs: list[float] = []
+    ys: list[float] = []
+    for row in rows:
+        row = normalized_row(row)
+        value = row.get(canonical)
+        if value is None:
+            continue
+        xs.append(float(row["step"]))
+        ys.append(float(value))
+    return xs, ys
+
+
+def event_payload(rows: list[dict[str, Any]], event_name: str) -> dict[str, Any] | None:
+    for row in rows:
+        row = normalized_row(row)
+        if row.get("event") == event_name:
+            return row
     return None
 
 
-def dedupe_by_step(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    deduped: dict[int, dict[str, Any]] = {}
+def metric_keys(payload: dict[str, Any] | None, prefix: str, exclude_loss: bool = True) -> list[str]:
+    if not payload:
+        return []
+
+    keys: list[str] = []
+    for key, value in normalized_row(payload).items():
+        if not isinstance(value, (int, float)):
+            continue
+        if not key.startswith(prefix):
+            continue
+        if should_drop_metric(key):
+            continue
+        if prefix == "eval_" and is_hasans_noans_metric(key):
+            continue
+        if exclude_loss and "loss" in key.lower():
+            continue
+        keys.append(key)
+    return sorted(unique_in_order(keys))
+
+
+def bench_contains_any_metrics(rows: list[dict[str, Any]], metrics: list[str]) -> bool:
+    canonical_metrics = {canonical_metric_name(metric) for metric in metrics}
     for row in rows:
-        step = row.get("step")
-        if not isinstance(step, int):
+        row = normalized_row(row)
+        if any(metric in row for metric in canonical_metrics):
+            return True
+    return False
+
+
+def filter_metrics_by_bench_presence(bench_rows: list[dict[str, Any]], metrics: list[str]) -> list[str]:
+    filtered: list[str] = []
+    has_special_metrics = bench_contains_any_metrics(bench_rows, SQUAD_V2_EVAL_METRICS)
+    for metric in metrics:
+        canonical = canonical_metric_name(metric)
+        if canonical in SQUAD_V2_EVAL_METRICS and not has_special_metrics:
             continue
-        current = deduped.get(step)
-        if current is None or float(row.get("elapsed_seconds", -math.inf)) >= float(current.get("elapsed_seconds", -math.inf)):
-            deduped[step] = row
-    return [deduped[step] for step in sorted(deduped)]
+        filtered.append(metric)
+    return filtered
 
 
-def collect_training_loss(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    rows = [event for event in events if event.get("event") == "log" and isinstance(event.get("loss"), (int, float))]
-    return dedupe_by_step(rows)
+def create_figure(num_panels: int, title: str) -> tuple[plt.Figure, np.ndarray]:
+    cols = 2 if num_panels > 1 else 1
+    rows = math.ceil(num_panels / cols)
+    fig, axes = plt.subplots(rows, cols, figsize=(7 * cols, 4.5 * rows), squeeze=False)
+    fig.suptitle(title, fontsize=14)
+    return fig, axes
 
 
-def collect_eval_metric_logs(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    rows = []
-    for event in events:
-        if event.get("event") != "log":
+def metric_positions(metrics: list[str]) -> np.ndarray:
+    if not metrics:
+        return np.array([], dtype=float)
+
+    positions: list[float] = []
+    current = 0.0
+
+    for index, metric in enumerate(metrics):
+        if index == 0:
+            positions.append(current)
             continue
-        if any(key in event for key in ("eval_exact", "eval_exact_match", "eval_f1")):
-            rows.append(event)
-    return dedupe_by_step(rows)
+        current += 1.0
+        positions.append(current)
+
+    return np.array(positions, dtype=float)
 
 
-def find_final_event(events: list[dict[str, Any]], event_name: str) -> dict[str, Any] | None:
-    matches = [event for event in events if event.get("event") == event_name]
-    if not matches:
-        return None
-    return max(matches, key=lambda event: float(event.get("elapsed_seconds", -math.inf)))
+def overall_metric_color_map(metrics: list[str]) -> dict[str, dict[str, str]]:
+    color_map: dict[str, dict[str, str]] = {}
+    for index, metric in enumerate(metrics):
+        best_color, final_color = OVERALL_METRIC_COLOR_PAIRS[index % len(OVERALL_METRIC_COLOR_PAIRS)]
+        color_map[metric] = {
+            "best": best_color,
+            "final": final_color,
+        }
+    return color_map
 
 
-def find_best_model_restored(events: list[dict[str, Any]]) -> dict[str, Any] | None:
-    matches = [event for event in events if event.get("event") == "best_model_restored"]
-    if not matches:
-        return None
-    return max(matches, key=lambda event: float(event.get("elapsed_seconds", -math.inf)))
+def bar_width_for_chart(total_bars: int, normal_width: float = 0.66) -> float:
+    if total_bars == 4:
+        return normal_width * 0.5
+    return normal_width
 
 
-def build_experiment_lookup(metadata: dict[int, ExperimentMeta], bench_dirs: list[Path]) -> dict[int, tuple[ExperimentMeta, Path]]:
-    lookup: dict[int, tuple[ExperimentMeta, Path]] = {}
-    for bench_dir in bench_dirs:
-        match = EXPERIMENT_RE.search(bench_dir.name)
-        if not match:
+def save_line_plot(
+    rows: list[dict[str, Any]],
+    metrics: list[str],
+    title: str,
+    output_path: Path,
+    y_label: str,
+    color_map: dict[str, str] | None = None,
+) -> None:
+    available_metrics = []
+    for metric in metrics:
+        canonical = canonical_metric_name(metric)
+        if canonical in available_metrics:
             continue
-        exp_number = int(match.group(1))
-        if exp_number in metadata:
-            meta = metadata[exp_number]
-        else:
-            meta = ExperimentMeta(
-                number=exp_number,
-                run_name=bench_dir.name,
-                run_config_path=None,
-                overrides=[],
-                model_name="unknown",
-                train_dataset="unknown",
-                eval_dataset="unknown",
-                test_dataset=None,
-                epochs=None,
-                learning_rate=None,
-                weight_decay=None,
-                max_grad_norm=None,
-                optimizer=None,
-                null_score_diff_threshold=None,
-                max_length=None,
-                doc_stride=None,
-                batch_size=None,
-                after_tokenization_limit=None,
-                after_tokenization_train_limit=None,
-                after_tokenization_validation_limit=None,
-                after_tokenization_test_limit=None,
-                seed=None,
-            )
-        lookup[exp_number] = (meta, bench_dir)
-    return dict(sorted(lookup.items()))
+        if any(canonical in normalized_row(row) for row in rows):
+            available_metrics.append(canonical)
 
+    if not available_metrics:
+        return
 
-def set_common_axis_format(ax: plt.Axes, max_step: int) -> None:
-    upper = int(math.ceil(max_step / 100.0) * 100) if max_step > 0 else 100
-    ticks = np.arange(0, upper + 1, 100, dtype=int)
-    if len(ticks) == 0:
-        ticks = np.array([0, 100], dtype=int)
-    ax.set_xlim(0, upper)
-    ax.set_xticks(ticks)
-    ax.grid(True, alpha=0.25)
+    fig, ax = plt.subplots(figsize=(9, 5))
+    for metric in available_metrics:
+        xs, ys = extract_series(rows, metric)
+        if not xs:
+            continue
+        color = color_map.get(metric) if color_map else None
+        ax.plot(xs, ys, marker="o", linewidth=2, markersize=4, label=metric, color=color)
 
-
-def finalize_figure(fig: plt.Figure, output_path: Path) -> None:
+    ax.set_title(title)
+    ax.set_xlabel("Step")
+    ax.set_ylabel(y_label)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
-    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 
-def zscore(values: list[float]) -> list[float]:
-    if not values:
-        return []
-    arr = np.array(values, dtype=float)
-    std = float(arr.std())
-    if std == 0.0:
-        return [0.0 for _ in values]
-    mean = float(arr.mean())
-    return [float((value - mean) / std) for value in values]
-
-
-def moving_average(values: list[float], window: int = 5) -> list[float]:
-    if not values:
-        return []
-    if window <= 1 or len(values) == 1:
-        return [float(v) for v in values]
-    half = window // 2
-    smoothed: list[float] = []
-    for idx in range(len(values)):
-        start = max(0, idx - half)
-        end = min(len(values), idx + half + 1)
-        smoothed.append(float(sum(values[start:end]) / (end - start)))
-    return smoothed
-
-
-def interpolate_series(x_source: list[int], y_source: list[float], x_target: list[int]) -> list[float]:
-    if not x_source or not y_source or not x_target:
-        return []
-    xs = np.array(x_source, dtype=float)
-    ys = np.array(y_source, dtype=float)
-    xt = np.array(x_target, dtype=float)
-    interpolated = np.interp(xt, xs, ys)
-    return [float(value) for value in interpolated]
-
-
-def plot_training_loss(meta: ExperimentMeta, rows: list[dict[str, Any]], output_path: Path) -> None:
-    steps = [row["step"] for row in rows]
-    losses = [float(row["loss"]) for row in rows]
-    max_step = max(steps)
-
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    fig.suptitle(f"{meta.short_name} Training Loss per 20 Steps across {max_step:,} steps", fontsize=14, y=0.98)
-    ax.set_title(meta.eval_subtitle, fontsize=10, pad=10)
-    ax.plot(steps, losses, color="tab:blue", marker="o", markersize=3, linewidth=1.8)
-    ax.set_xlabel("Step")
-    ax.set_ylabel("Loss")
-    set_common_axis_format(ax, max_step)
-    finalize_figure(fig, output_path)
-
-
-def metric_color_map(specs: list[tuple[str, tuple[str, ...], str]]) -> dict[str, Any]:
-    colors = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
-    return {canonical: colors[idx % len(colors)] for idx, (canonical, _, _) in enumerate(specs)}
-
-
-def plot_eval_series(
-    meta: ExperimentMeta,
-    rows: list[dict[str, Any]],
-    specs: list[tuple[str, tuple[str, ...], str]],
-    output_path: Path,
+def save_variant_metric_bar_chart(
+    experiment_name: str,
+    variant_payloads: dict[str, dict[str, Any]],
+    metrics: list[str],
     title: str,
-) -> bool:
-    steps = [row["step"] for row in rows]
-    max_step = max(steps)
-    color_map = metric_color_map(specs)
+    output_path: Path,
+) -> None:
+    present_metrics = [
+        metric
+        for metric in unique_in_order(canonical_metric_name(metric) for metric in metrics)
+        if any(canonical_metric_name(metric) in normalized_row(payload) for payload in variant_payloads.values())
+    ]
+    if not present_metrics:
+        return
 
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    fig.suptitle(f"{meta.short_name} {title} per 50 Steps across {max_step:,} steps", fontsize=14, y=0.98)
-    ax.set_title(meta.eval_subtitle, fontsize=10, pad=10)
+    fig, ax = plt.subplots(figsize=(max(8, len(present_metrics) * 1.8), 5))
+    base_positions = metric_positions(present_metrics)
+    bar_width = bar_width_for_chart(len(present_metrics) * 2)
+    colors = {"best": "#ff7f0e", "final": "#1f77b4"}
+    labels_added = {"best": False, "final": False}
 
-    plotted = False
-    legend_handles: list[Line2D] = []
-    for canonical, keys, label in specs:
-        values = [choose_metric_value(row, keys) for row in rows]
-        if not any(value is not None for value in values):
-            continue
-        xs = [step for step, value in zip(steps, values) if value is not None]
-        ys = [value for value in values if value is not None]
-        color = color_map[canonical]
-        ax.plot(xs, ys, marker="o", markersize=4, linewidth=1.8, color=color)
-        legend_handles.append(Line2D([0], [0], color=color, marker="o", linewidth=1.8, label=label))
-        plotted = True
-
-    if not plotted:
-        plt.close(fig)
-        return False
-
-    ax.set_xlabel("Step")
-    ax.set_ylabel("Metric")
-    ax.yaxis.set_major_locator(MaxNLocator(nbins=8))
-    set_common_axis_format(ax, max_step)
-    ax.legend(handles=legend_handles, loc="best")
-    finalize_figure(fig, output_path)
-    return True
-
-
-def assess_alignment(
-    inverted_loss_z: list[float],
-    exact_z: list[float],
-    f1_z: list[float],
-) -> tuple[str, str]:
-    if len(inverted_loss_z) < 2 or len(exact_z) < 2 or len(f1_z) < 2:
-        return ("insufficient", "Too few aligned checkpoints to say much about shape alignment.")
-
-    loss_arr = np.array(inverted_loss_z, dtype=float)
-    exact_arr = np.array(exact_z, dtype=float)
-    f1_arr = np.array(f1_z, dtype=float)
-    if float(loss_arr.std()) == 0.0 or float(exact_arr.std()) == 0.0 or float(f1_arr.std()) == 0.0:
-        return (
-            "insufficient",
-            "Insufficient variation: one or more z-scored series is nearly flat, so shape correlation is not very informative here.",
+    best_payload = normalized_row(variant_payloads.get("best", {}))
+    final_payload = normalized_row(variant_payloads.get("final", {}))
+    for position, metric in zip(base_positions, present_metrics):
+        metric_values = {
+            "best": float(best_payload.get(metric, np.nan)),
+            "final": float(final_payload.get(metric, np.nan)),
+        }
+        draw_order = sorted(
+            ("best", "final"),
+            key=lambda variant: (
+                np.isnan(metric_values[variant]),
+                -(metric_values[variant] if not np.isnan(metric_values[variant]) else float("-inf")),
+            ),
         )
-    corr_exact = float(np.corrcoef(loss_arr, exact_arr)[0, 1])
-    corr_f1 = float(np.corrcoef(loss_arr, f1_arr)[0, 1])
-    if math.isnan(corr_exact) or math.isnan(corr_f1):
-        return (
-            "insufficient",
-            "Insufficient variation: one or more series is too flat for a stable correlation-based shape comparison.",
-        )
-    avg_corr = (corr_exact + corr_f1) / 2.0
+        for variant_name in draw_order:
+            value = metric_values[variant_name]
+            ax.bar(
+                position,
+                value,
+                width=bar_width,
+                label=variant_name if not labels_added[variant_name] else None,
+                color=colors[variant_name],
+                alpha=1.0,
+                linewidth=0,
+            )
+            labels_added[variant_name] = True
 
-    if avg_corr >= 0.75:
-        label = "strong"
-        summary = (
-            f"Strong alignment: the smoothed improvement-from-loss curve co-moves well with eval "
-            f"Exact/F1 overall (corr exact={corr_exact:.2f}, corr f1={corr_f1:.2f})."
-        )
-    elif avg_corr >= 0.4:
-        label = "moderate"
-        summary = (
-            f"Moderate alignment: the broad phases mostly match, but there are noticeable local "
-            f"divergences between loss and eval metrics (corr exact={corr_exact:.2f}, corr f1={corr_f1:.2f})."
-        )
+    ax.set_xticks(base_positions)
+    ax.set_xticklabels(present_metrics, rotation=30, ha="right")
+    ax.set_title(title)
+    ax.set_ylabel("Metric Value")
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend()
+    fig.suptitle(display_experiment_name(experiment_name), fontsize=12, y=1.02)
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_combined_variant_metric_bar_chart(
+    experiment_name: str,
+    eval_variant_payloads: dict[str, dict[str, Any]],
+    eval_metrics: list[str],
+    test_variant_payloads: dict[str, dict[str, Any]],
+    test_metrics: list[str],
+    title: str,
+    output_path: Path,
+) -> None:
+    eval_present_metrics = [
+        metric
+        for metric in unique_in_order(canonical_metric_name(metric) for metric in eval_metrics)
+        if any(canonical_metric_name(metric) in normalized_row(payload) for payload in eval_variant_payloads.values())
+    ]
+    test_present_metrics = [
+        metric
+        for metric in unique_in_order(canonical_metric_name(metric) for metric in test_metrics)
+        if any(canonical_metric_name(metric) in normalized_row(payload) for payload in test_variant_payloads.values())
+    ]
+    if not eval_present_metrics and not test_present_metrics:
+        return
+
+    section_gap = 1.8
+    eval_positions = metric_positions(eval_present_metrics)
+    if eval_present_metrics:
+        test_start = eval_positions[-1] + section_gap + 1.0
     else:
-        label = "weak"
-        summary = (
-            f"Weak alignment: loss shape and eval-metric shape diverge enough that loss alone would be "
-            f"a poor proxy here (corr exact={corr_exact:.2f}, corr f1={corr_f1:.2f})."
-        )
-    return label, summary
+        test_start = 0.0
+    test_positions = metric_positions(test_present_metrics) + test_start
 
+    combined_positions = np.concatenate([eval_positions, test_positions]) if len(test_positions) else eval_positions
+    total_bars = (len(eval_present_metrics) + len(test_present_metrics)) * 2
+    bar_width = bar_width_for_chart(total_bars)
+    colors = {"best": "#ff7f0e", "final": "#1f77b4"}
+    labels_added = {"best": False, "final": False}
 
-def plot_shape_comparison(
-    meta: ExperimentMeta,
-    training_rows: list[dict[str, Any]],
-    eval_rows: list[dict[str, Any]],
-    output_path: Path,
-) -> str | None:
-    eval_steps = [row["step"] for row in eval_rows]
-    exact = [choose_metric_value(row, ("eval_exact", "eval_exact_match")) for row in eval_rows]
-    f1 = [choose_metric_value(row, ("eval_f1",)) for row in eval_rows]
-    if not any(value is not None for value in exact) or not any(value is not None for value in f1):
-        return None
+    fig, ax = plt.subplots(figsize=(max(10, len(combined_positions) * 1.8), 5.5))
 
-    train_steps = [row["step"] for row in training_rows]
-    train_loss = [float(row["loss"]) for row in training_rows]
-    smoothed_loss = moving_average(train_loss, window=5)
-    smoothed_loss_at_eval = interpolate_series(train_steps, smoothed_loss, eval_steps)
-    inverted_loss_z = zscore([-value for value in smoothed_loss_at_eval])
-
-    exact_values = [float(value) if value is not None else math.nan for value in exact]
-    f1_values = [float(value) if value is not None else math.nan for value in f1]
-    valid_idx = [
-        idx for idx, (e_val, f_val) in enumerate(zip(exact_values, f1_values))
-        if not math.isnan(e_val) and not math.isnan(f_val)
-    ]
-    if len(valid_idx) < 2:
-        return None
-
-    valid_steps = [eval_steps[idx] for idx in valid_idx]
-    valid_inverted_loss_z = [inverted_loss_z[idx] for idx in valid_idx]
-    valid_exact_z = zscore([exact_values[idx] for idx in valid_idx])
-    valid_f1_z = zscore([f1_values[idx] for idx in valid_idx])
-    alignment_label, explanation = assess_alignment(valid_inverted_loss_z, valid_exact_z, valid_f1_z)
-
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    fig.suptitle(
-        f"{meta.short_name} Z-scored Shape Comparison per 50 Steps across {max(eval_steps):,} steps",
-        fontsize=14,
-        y=0.98,
-    )
-    ax.set_title(
-        meta.eval_subtitle + " | Smoothed loss is inverted so upward means improvement.",
-        fontsize=10,
-        pad=10,
-    )
-    ax.plot(valid_steps, valid_inverted_loss_z, color="tab:purple", linewidth=2.0, marker="o", label="Smoothed -Loss (z)")
-    ax.plot(valid_steps, valid_exact_z, color="tab:blue", linewidth=1.8, marker="o", label="Exact (z)")
-    ax.plot(valid_steps, valid_f1_z, color="tab:orange", linewidth=1.8, marker="o", label="F1 (z)")
-    ax.axhline(0.0, color="gray", linewidth=1.0, alpha=0.6)
-    ax.set_xlabel("Step")
-    ax.set_ylabel("Z-score")
-    set_common_axis_format(ax, max(eval_steps))
-    ax.legend(loc="best")
-    ax.text(
-        0.01,
-        0.02,
-        f"Assessment: {alignment_label}",
-        transform=ax.transAxes,
-        fontsize=9,
-        va="bottom",
-        ha="left",
-        bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "alpha": 0.85, "edgecolor": "lightgray"},
-    )
-    finalize_figure(fig, output_path)
-    return explanation
-
-
-def plot_final_metric_summary(
-    experiments: list[tuple[ExperimentMeta, dict[str, Any]]],
-    specs: list[tuple[str, tuple[str, ...], str]],
-    output_path: Path,
-    title: str,
-) -> bool:
-    if not experiments:
-        return False
-
-    color_map = metric_color_map(specs)
-    fig, ax = plt.subplots(figsize=(11, 6))
-    fig.suptitle(title, fontsize=14, y=0.98)
-    ax.set_title("Each point is the final postprocessed metric for that experiment.", fontsize=10, pad=10)
-
-    exp_numbers = [meta.number for meta, _ in experiments]
-    plotted = False
-    legend_handles: list[Line2D] = []
-    for canonical, keys, label in specs:
-        ys = [choose_metric_value(metrics, keys) for _, metrics in experiments]
-        if not any(value is not None for value in ys):
-            continue
-        xs = [num for num, value in zip(exp_numbers, ys) if value is not None]
-        vals = [value for value in ys if value is not None]
-        color = color_map[canonical]
-        ax.plot(xs, vals, marker="o", linewidth=1.8, color=color)
-        legend_handles.append(Line2D([0], [0], color=color, marker="o", linewidth=1.8, label=label))
-        plotted = True
-
-    if not plotted:
-        plt.close(fig)
-        return False
-
-    ax.set_xlabel("Experiment Number")
-    ax.set_ylabel("Metric")
-    ax.set_xticks(exp_numbers)
-    ax.grid(True, alpha=0.25)
-    ax.legend(handles=legend_handles, loc="best")
-    finalize_figure(fig, output_path)
-    return True
-
-
-def write_experiment_key_json(experiments: list[ExperimentMeta], output_path: Path) -> None:
-    payload = [{meta.short_name: meta.key_payload()} for meta in experiments]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-
-
-def write_3d_note(experiments: list[tuple[ExperimentMeta, list[dict[str, Any]], dict[str, Any] | None]], output_path: Path) -> None:
-    lines = [
-        "3D gradient-norm landscape note",
-        "",
-        "A true loss-landscape or valley plot is not recoverable from these benchmark logs alone.",
-        "The logs contain a 1D training trajectory over step, plus scalar values like loss and grad_norm.",
-        "They do not contain parameter-space coordinates, Hessian information, or a sampled 2D/3D slice",
-        "through model weight space, so Matplotlib cannot reconstruct which basin or valley the best model sits in.",
-        "",
-        "What is available here:",
-        "- step",
-        "- loss",
-        "- grad_norm",
-        "- best_model_restored step",
-        "",
-        "What would be needed for a real landscape plot:",
-        "- saved model checkpoints around the optimum",
-        "- a method to define 2 directions in parameter space",
-        "- recomputed loss or grad_norm on a grid over those directions",
-        "",
-        "Suggested tools/workflows:",
-        "- Matplotlib or Plotly after generating a sampled loss grid",
-        "- loss-landscape style tooling based on checkpoint interpolation",
-        "- custom PyTorch evaluation scripts that sweep a 2D slice around the best checkpoint",
-        "",
-        "Best-model steps observed in these experiments:",
-    ]
-    for meta, _, best in experiments:
-        if best is None:
-            lines.append(f"- {meta.short_name}: no best_model_restored event found")
-            continue
-        lines.append(
-            f"- {meta.short_name}: best step={best.get('step')} "
-            f"({best.get('metric_name')}={best.get('metric_value')})"
-        )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def write_shape_notes(notes: list[tuple[ExperimentMeta, str]], output_path: Path) -> None:
-    lines = [
-        "# Z-scored Shape Comparison Notes",
-        "",
-        "Each plot overlays three z-scored series at eval checkpoints:",
-        "- inverted smoothed training loss",
-        "- eval Exact",
-        "- eval F1",
-        "",
-        "Because the loss curve is inverted before z-scoring, upward movement means improvement for all three lines.",
-        "",
-    ]
-    for meta, note in notes:
-        wrapped = textwrap.fill(note, width=100, subsequent_indent="  ")
-        lines.append(f"## {meta.short_name}")
-        lines.append(wrapped)
-        lines.append("")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n".join(lines), encoding="utf-8")
-
-
-def main() -> None:
-    args = parse_args()
-    bench_root = detect_bench_root(args.bench_root)
-    output_root = args.output_root
-    eval_output_root = output_root / "eval"
-    test_output_root = output_root / "test"
-    eval_output_root.mkdir(parents=True, exist_ok=True)
-    test_output_root.mkdir(parents=True, exist_ok=True)
-
-    metadata = load_run_metadata(args.run_script)
-    bench_dirs = sorted(path.parent for path in bench_root.glob("*/bench.jsonl"))
-    experiment_lookup = build_experiment_lookup(metadata, bench_dirs)
-
-    aggregate_eval: list[tuple[ExperimentMeta, dict[str, Any]]] = []
-    aggregate_test: list[tuple[ExperimentMeta, dict[str, Any]]] = []
-    note_inputs: list[tuple[ExperimentMeta, list[dict[str, Any]], dict[str, Any] | None]] = []
-    shape_notes: list[tuple[ExperimentMeta, str]] = []
-
-    for _, (meta, bench_dir) in experiment_lookup.items():
-        events = load_bench_events(bench_dir / "bench.jsonl")
-        training_rows = collect_training_loss(events)
-        eval_rows = collect_eval_metric_logs(events)
-        final_eval = find_final_event(events, "eval_postprocessed")
-        final_test = find_final_event(events, "test_postprocessed")
-        best_model = find_best_model_restored(events)
-        note_inputs.append((meta, training_rows, best_model))
-
-        if training_rows:
-            plot_training_loss(meta, training_rows, eval_output_root / f"{meta.short_name}_loss.png")
-
-        if eval_rows:
-            plot_eval_series(
-                meta,
-                eval_rows,
-                EVAL_SERIES_SPECS,
-                eval_output_root / f"{meta.short_name}_eval_exact_f1.png",
-                "Eval Exact and F1",
+    def draw_section(
+        positions: np.ndarray,
+        metrics: list[str],
+        variant_payloads: dict[str, dict[str, Any]],
+    ) -> None:
+        best_payload = normalized_row(variant_payloads.get("best", {}))
+        final_payload = normalized_row(variant_payloads.get("final", {}))
+        for position, metric in zip(positions, metrics):
+            metric_values = {
+                "best": float(best_payload.get(metric, np.nan)),
+                "final": float(final_payload.get(metric, np.nan)),
+            }
+            draw_order = sorted(
+                ("best", "final"),
+                key=lambda variant: (
+                    np.isnan(metric_values[variant]),
+                    -(metric_values[variant] if not np.isnan(metric_values[variant]) else float("-inf")),
+                ),
             )
-            plot_eval_series(
-                meta,
-                eval_rows,
-                OPTIONAL_ANS_SERIES_SPECS,
-                eval_output_root / f"{meta.short_name}_eval_answer_breakdown.png",
-                "Eval HasAns and NoAns Metrics",
-            )
-            if training_rows:
-                explanation = plot_shape_comparison(
-                    meta,
-                    training_rows,
-                    eval_rows,
-                    eval_output_root / f"{meta.short_name}_shape_comparison_zscore.png",
+            for variant_name in draw_order:
+                ax.bar(
+                    position,
+                    metric_values[variant_name],
+                    width=bar_width,
+                    label=variant_name if not labels_added[variant_name] else None,
+                    color=colors[variant_name],
+                    alpha=1.0,
+                    linewidth=0,
                 )
-                if explanation:
-                    shape_notes.append((meta, explanation))
+                labels_added[variant_name] = True
 
-        if final_eval:
-            aggregate_eval.append((meta, final_eval))
-        if final_test:
-            aggregate_test.append((meta, final_test))
+    draw_section(eval_positions, eval_present_metrics, eval_variant_payloads)
+    draw_section(test_positions, test_present_metrics, test_variant_payloads)
 
-    metas = [meta for meta, _ in experiment_lookup.values()]
-    write_experiment_key_json(metas, output_root / "experiment_key.json")
-    plot_final_metric_summary(
-        aggregate_eval,
-        FINAL_EVAL_METRIC_SPECS,
-        output_root / "all_experiments_eval_postprocessed.png",
-        "Final Eval Postprocessed Metrics Across Experiments",
+    tick_positions = list(eval_positions) + list(test_positions)
+    tick_labels = eval_present_metrics + test_present_metrics
+    ax.set_xticks(tick_positions)
+    ax.set_xticklabels(tick_labels, rotation=30, ha="right")
+    ax.set_title(title)
+    ax.set_ylabel("Metric Value")
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend()
+
+    super_positions: list[float] = []
+    super_labels: list[str] = []
+    if len(eval_positions) > 0:
+        super_positions.append(float((eval_positions[0] + eval_positions[-1]) / 2))
+        super_labels.append("Validation")
+    if len(test_positions) > 0:
+        super_positions.append(float((test_positions[0] + test_positions[-1]) / 2))
+        super_labels.append("Test")
+    if super_positions:
+        secondary = ax.secondary_xaxis("top")
+        secondary.set_xticks(super_positions)
+        secondary.set_xticklabels(super_labels)
+
+    fig.suptitle(display_experiment_name(experiment_name), fontsize=12, y=1.03)
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_cross_experiment_variant_chart(
+    experiments: list[ExperimentData],
+    event_name: str,
+    metric_prefix: str,
+    title: str,
+    output_path: Path,
+) -> None:
+    metric_union: list[str] = []
+    experiment_metric_sets: dict[str, list[str]] = {}
+    for experiment in experiments:
+        best_payload = event_payload(experiment.best_rows, event_name)
+        final_payload = event_payload(experiment.final_rows, event_name)
+        experiment_metrics = unique_in_order(
+            filter_metrics_by_bench_presence(
+                experiment.bench_rows,
+                metric_keys(best_payload, metric_prefix) + metric_keys(final_payload, metric_prefix),
+            )
+        )
+        experiment_metric_sets[experiment.name] = experiment_metrics
+        for key in experiment_metrics:
+            if key not in metric_union:
+                metric_union.append(key)
+
+    if not metric_union:
+        return
+
+    fig, ax = plt.subplots(figsize=(max(16, len(experiments) * len(metric_union) * 0.8), 7))
+    group_gap = 1.8
+    total_bars = sum(len(metrics) * 2 for metrics in experiment_metric_sets.values())
+    bar_width = bar_width_for_chart(total_bars)
+    metric_colors = overall_metric_color_map(metric_union)
+    labels_added: set[str] = set()
+    experiment_centers: list[float] = []
+    experiment_labels: list[str] = []
+    current_group_start = 0.0
+
+    for experiment in experiments:
+        best_payload = normalized_row(event_payload(experiment.best_rows, event_name) or {})
+        final_payload = normalized_row(event_payload(experiment.final_rows, event_name) or {})
+        experiment_metrics = experiment_metric_sets[experiment.name]
+        metric_offsets = metric_positions(experiment_metrics)
+        group_span = (metric_offsets[-1] - metric_offsets[0]) if len(metric_offsets) > 0 else 0.0
+        group_start = current_group_start
+
+        if len(experiment_metrics) > 0:
+            first_x = group_start + metric_offsets[0]
+            last_x = group_start + metric_offsets[-1]
+            experiment_centers.append((first_x + last_x) / 2)
+            experiment_labels.append(experiment_number(experiment.name))
+
+        for metric_index, metric in enumerate(experiment_metrics):
+            base_x = group_start + metric_offsets[metric_index]
+            metric_values = {
+                "best": float(best_payload.get(metric, np.nan)),
+                "final": float(final_payload.get(metric, np.nan)),
+            }
+            draw_order = sorted(
+                ("best", "final"),
+                key=lambda variant: (
+                    np.isnan(metric_values[variant]),
+                    -(metric_values[variant] if not np.isnan(metric_values[variant]) else float("-inf")),
+                ),
+            )
+            for variant_name in draw_order:
+                ax.bar(
+                    base_x,
+                    metric_values[variant_name],
+                    width=bar_width,
+                    color=metric_colors[metric][variant_name],
+                    label=f"{metric} {variant_name}" if f"{metric} {variant_name}" not in labels_added else None,
+                    alpha=1.0,
+                    linewidth=0,
+                )
+                labels_added.add(f"{metric} {variant_name}")
+
+        current_group_start = group_start + group_span + group_gap + 1.0
+    ax.set_xticks(experiment_centers)
+    ax.set_xticklabels(experiment_labels)
+    ax.set_title(title)
+    ax.set_ylabel("Metric Value")
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend()
+
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def generate_per_experiment_plots(experiment: ExperimentData, output_root: Path) -> None:
+    experiment_dir = output_root / experiment.name
+    log_rows = filter_log_rows(
+        experiment.bench_rows,
+        LOSS_METRICS + CORE_EVAL_METRICS + SQUAD_V2_EVAL_METRICS,
     )
-    plot_final_metric_summary(
-        aggregate_test,
-        FINAL_TEST_METRIC_SPECS,
-        output_root / "all_experiments_test_postprocessed.png",
-        "Final Test Postprocessed Metrics Across Experiments",
+    predict_rows = filter_event_rows(
+        experiment.bench_rows,
+        "predict",
+        PREDICT_VALIDATION_METRICS + CORE_EVAL_METRICS + SQUAD_V2_EVAL_METRICS,
     )
-    write_3d_note(note_inputs, output_root / "gradient_landscape_note.txt")
-    write_shape_notes(shape_notes, output_root / "shape_comparison_notes.md")
+
+    save_line_plot(
+        rows=filter_log_rows(log_rows, LOSS_METRICS),
+        metrics=LOSS_METRICS,
+        title=f"{display_experiment_name(experiment.name)} Training Loss",
+        output_path=experiment_dir / "training_loss.png",
+        y_label="Loss",
+        color_map={"loss": LINE_COLORS["loss"]},
+    )
+
+    save_line_plot(
+        rows=filter_log_rows(log_rows, CORE_EVAL_METRICS),
+        metrics=CORE_EVAL_METRICS,
+        title=f"{display_experiment_name(experiment.name)} Logged Validation Metrics",
+        output_path=experiment_dir / "logged_validation_core.png",
+        y_label="Metric Value",
+        color_map={
+            "eval_exact": LINE_COLORS["exact"],
+            "eval_f1": LINE_COLORS["f1"],
+        },
+    )
+
+    if any(any(canonical_metric_name(metric) in normalized_row(row) for metric in SQUAD_V2_EVAL_METRICS) for row in log_rows):
+        save_line_plot(
+            rows=filter_log_rows(log_rows, SQUAD_V2_EVAL_METRICS),
+            metrics=SQUAD_V2_EVAL_METRICS,
+            title=f"{display_experiment_name(experiment.name)} Logged SQuAD v2 Validation Metrics",
+            output_path=experiment_dir / "logged_validation_hasans_noans.png",
+            y_label="Metric Value",
+            color_map={
+                "eval_HasAns_exact": LINE_COLORS["hasans_exact"],
+                "eval_HasAns_f1": LINE_COLORS["hasans_f1"],
+                "eval_NoAns_exact": LINE_COLORS["noans_exact"],
+                "eval_NoAns_f1": LINE_COLORS["noans_f1"],
+            },
+        )
+
+    save_line_plot(
+        rows=predict_rows,
+        metrics=PREDICT_VALIDATION_METRICS,
+        title=f"{display_experiment_name(experiment.name)} Training Validation Metrics",
+        output_path=experiment_dir / "training_validation_metrics.png",
+        y_label="Metric Value",
+        color_map={"eval_loss": LINE_COLORS["loss"]},
+    )
+
+    eval_variant_payloads = {
+        "best": event_payload(experiment.best_rows, "eval_postprocessed") or {},
+        "final": event_payload(experiment.final_rows, "eval_postprocessed") or {},
+    }
+    test_variant_payloads = {
+        "best": event_payload(experiment.best_rows, "test_postprocessed") or {},
+        "final": event_payload(experiment.final_rows, "test_postprocessed") or {},
+    }
+    eval_metrics = filter_metrics_by_bench_presence(
+        experiment.bench_rows,
+        metric_keys(eval_variant_payloads["best"], "eval_") + metric_keys(eval_variant_payloads["final"], "eval_"),
+    )
+    test_metrics = filter_metrics_by_bench_presence(
+        experiment.bench_rows,
+        metric_keys(test_variant_payloads["best"], "test_") + metric_keys(test_variant_payloads["final"], "test_"),
+    )
+    save_combined_variant_metric_bar_chart(
+        experiment_name=experiment.name,
+        eval_variant_payloads=eval_variant_payloads,
+        eval_metrics=eval_metrics,
+        test_variant_payloads=test_variant_payloads,
+        test_metrics=test_metrics,
+        title="Final Validation And Test Metrics",
+        output_path=experiment_dir / "final_metrics.png",
+    )
+
+
+def main() -> int:
+    args = parse_args()
+    experiments = discover_experiments(args.bench_root)
+    if not experiments:
+        raise SystemExit(f"No experiment directories found under {args.bench_root}")
+
+    for experiment in experiments:
+        generate_per_experiment_plots(experiment, args.output_root)
+
+    save_cross_experiment_variant_chart(
+        experiments=experiments,
+        event_name="eval_postprocessed",
+        metric_prefix="eval_",
+        title="All Experiments Final Validation Metrics: Best vs Final",
+        output_path=args.output_root / "all_experiments_final_validation.png",
+    )
+
+    save_cross_experiment_variant_chart(
+        experiments=experiments,
+        event_name="test_postprocessed",
+        metric_prefix="test_",
+        title="All Experiments Final Test Metrics: Best vs Final",
+        output_path=args.output_root / "all_experiments_final_test.png",
+    )
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

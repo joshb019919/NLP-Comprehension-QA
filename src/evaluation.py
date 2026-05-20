@@ -1,11 +1,12 @@
+import json
 import re
 import string
 from collections import Counter
+from pathlib import Path
 from typing import Iterable, List, Dict, Any
 
 from datasets import Dataset
 import numpy as np
-from common import release_memory, shutdown_trainer_dataloader
 from postprocess import (
     postprocess_triviaqa_predictions,
     postprocess_squad_predictions,
@@ -195,6 +196,15 @@ def unpack_qa_predictions(predictions: Any) -> tuple[np.ndarray, np.ndarray]:
     )
 
 
+def save_prediction_records(records: list[dict[str, Any]], output_path: Path) -> None:
+    output_path.mkdir(parents=True, exist_ok=True)
+    predictions_path = output_path / "predictions.json"
+    tmp_path = predictions_path.with_suffix(".json.tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2, ensure_ascii=False)
+    tmp_path.replace(predictions_path)
+
+
 def run_postprocessed_eval(
     trainer: Trainer,
     dataset_name: str,
@@ -203,6 +213,7 @@ def run_postprocessed_eval(
     eval_examples: Dataset,
     eval_features_for_postprocess: Dataset,
     prefix: str,
+    output_path: Path | None = None,
 ) -> dict[str, float]:
     if len(eval_examples) == 0 or len(eval_features_for_postprocess) == 0:
         if dataset_name == "mandarjoshi/trivia_qa":
@@ -229,8 +240,6 @@ def run_postprocessed_eval(
         finally:
             trainer.args.dataloader_drop_last = original_drop_last
             del eval_features_for_predict
-            shutdown_trainer_dataloader(trainer, "_test_dataloader")
-            release_memory()
 
     pred_output = predict_for_postprocessing()
 
@@ -251,7 +260,6 @@ def run_postprocessed_eval(
             if isinstance(value, (int, float)):
                 combined[key] = float(value)
         pred_output = None
-        release_memory()
         return combined
 
     all_start_logits, all_end_logits = unpack_qa_predictions(pred_output.predictions)
@@ -269,6 +277,25 @@ def run_postprocessed_eval(
         )
         pred_map = aggregate_predictions_by_question_id(predictions)
         ref_map = build_triviaqa_reference_map_from_raw(raw_examples)
+        if output_path is not None:
+            prediction_by_id = {str(item["id"]): item for item in predictions}
+            prediction_records = []
+            seen_question_ids: set[str] = set()
+            for example in eval_examples:
+                question_id = str(example["question_id"])
+                if question_id in seen_question_ids:
+                    continue
+                seen_question_ids.add(question_id)
+                prediction = prediction_by_id.get(question_id, {})
+                prediction_records.append(
+                    {
+                        "question": example["question"],
+                        "context": example["context"],
+                        "predicted_answer": prediction.get("prediction_text", ""),
+                        "ground_truth": ref_map.get(question_id, []),
+                    }
+                )
+            save_prediction_records(prediction_records, output_path)
         qa_scores = evaluate_triviaqa(pred_map, ref_map)
     elif dataset_name in {"rajpurkar/squad", "rajpurkar/squad_v2"}:
         predictions, references = postprocess_squad_predictions(
@@ -277,6 +304,18 @@ def run_postprocessed_eval(
             raw_predictions=raw_predictions,
             version_2_with_negative=version_2_with_negative,
         )
+        if output_path is not None:
+            prediction_records = []
+            for example, prediction, reference in zip(eval_examples, predictions, references):
+                prediction_records.append(
+                    {
+                        "question": example["question"],
+                        "context": example["context"],
+                        "predicted_answer": prediction["prediction_text"],
+                        "ground_truth": list(reference["answers"]["text"]),
+                    }
+                )
+            save_prediction_records(prediction_records, output_path)
         qa_scores = evaluate_squad_family(
             predictions=predictions,
             references=references,
@@ -293,5 +332,4 @@ def run_postprocessed_eval(
     raw_predictions = None
     all_start_logits = None
     all_end_logits = None
-    release_memory()
     return combined

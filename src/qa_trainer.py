@@ -1,8 +1,5 @@
-from pathlib import Path
-
 import torch
 from datasets import Dataset
-from common import release_memory
 from evaluation import run_postprocessed_eval
 from transformers import Trainer, TrainerCallback
 
@@ -12,6 +9,8 @@ class GradientValueClippingCallback(TrainerCallback):
         self._clip_value = float(clip_value)
 
     def on_pre_optimizer_step(self, args, state, control, model=None, **kwargs):
+        # Set at 0 to disable value clipping and rely only on norm clipping
+        self._clip_value = 0.0
         if self._clip_value <= 0.0 or model is None:
             return control
 
@@ -19,53 +18,6 @@ class GradientValueClippingCallback(TrainerCallback):
         if parameters:
             torch.nn.utils.clip_grad_value_(parameters, self._clip_value)
         return control
-
-
-class BestModelInMemoryCallback(TrainerCallback):
-    def __init__(self, metric_name: str, greater_is_better: bool) -> None:
-        self._metric_name = metric_name
-        self._greater_is_better = bool(greater_is_better)
-        self._best_metric: float | None = None
-        self._best_step: int | None = None
-        self._best_state_path: Path | None = None
-
-    def _is_better(self, candidate: float) -> bool:
-        if self._best_metric is None:
-            return True
-        if self._greater_is_better:
-            return candidate > self._best_metric
-        return candidate < self._best_metric
-
-    def on_evaluate(self, args, state, control, metrics=None, model=None, **kwargs):
-        if metrics is None or model is None or self._metric_name not in metrics:
-            return control
-
-        candidate = float(metrics[self._metric_name])
-        if not self._is_better(candidate):
-            return control
-
-        self._best_metric = candidate
-        self._best_step = int(state.global_step)
-        best_state_dict = {
-            name: tensor.detach().cpu().clone()
-            for name, tensor in model.state_dict().items()
-        }
-        if self._best_state_path is None:
-            self._best_state_path = Path(args.output_dir) / "best-model-snapshot.pt"
-        torch.save(best_state_dict, self._best_state_path)
-        del best_state_dict
-        release_memory()
-        return control
-
-    def restore_best_model(self, model) -> tuple[float | None, int | None]:
-        if self._best_state_path is None or not self._best_state_path.exists():
-            return None, None
-
-        best_state_dict = torch.load(self._best_state_path, map_location="cpu")
-        model.load_state_dict(best_state_dict)
-        del best_state_dict
-        release_memory()
-        return self._best_metric, self._best_step
 
 
 class QATrainer(Trainer):
@@ -156,6 +108,4 @@ class QATrainer(Trainer):
                 self.control = self.callback_handler.on_evaluate(
                     self.args, self.state, self.control, metrics
                 )
-        release_memory()
-
         return metrics

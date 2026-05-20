@@ -7,7 +7,6 @@ import resource
 import shutil
 import time
 import traceback
-import ctypes
 from pathlib import Path
 from typing import Any
 
@@ -24,12 +23,6 @@ DEFAULT_DIRS = {
     "bench": HF_ROOT / "bench",
     "tmp": HF_ROOT / "tmp",
 }
-
-try:
-    _LIBC = ctypes.CDLL("libc.so.6")
-except OSError:
-    _LIBC = None
-
 
 def ensure_dirs() -> dict[str, Path]:
     for path in DEFAULT_DIRS.values():
@@ -76,98 +69,7 @@ def remove_dir_if_exists(path: Path) -> None:
 def release_memory() -> None:
     gc.collect()
     if torch.cuda.is_available():
-        try:
-            torch.cuda.synchronize()
-        except RuntimeError:
-            pass
         torch.cuda.empty_cache()
-        try:
-            torch.cuda.ipc_collect()
-        except RuntimeError:
-            pass
-        try:
-            torch.cuda.reset_peak_memory_stats()
-        except RuntimeError:
-            pass
-    if _LIBC is not None and hasattr(_LIBC, "malloc_trim"):
-        try:
-            _LIBC.malloc_trim(0)
-        except (AttributeError, OSError):
-            pass
-
-
-def _shutdown_dataloader_workers(dataloader: Any) -> None:
-    if dataloader is None:
-        return
-
-    iterator = getattr(dataloader, "_iterator", None)
-    if iterator is not None:
-        shutdown = getattr(iterator, "_shutdown_workers", None)
-        if callable(shutdown):
-            try:
-                shutdown()
-            except Exception:
-                pass
-        dataloader._iterator = None
-
-
-def shutdown_trainer_dataloader(trainer: Any, attr_name: str) -> None:
-    if trainer is None or not hasattr(trainer, attr_name):
-        return
-
-    dataloader = getattr(trainer, attr_name, None)
-    _shutdown_dataloader_workers(dataloader)
-    setattr(trainer, attr_name, None)
-
-
-def teardown_trainer(trainer: Any) -> None:
-    if trainer is None:
-        return
-
-    for attr_name in (
-        "_train_dataloader",
-        "_eval_dataloader",
-        "_test_dataloader",
-    ):
-        dataloader = getattr(trainer, attr_name, None)
-        _shutdown_dataloader_workers(dataloader)
-        setattr(trainer, attr_name, None)
-
-    accelerator = getattr(trainer, "accelerator", None)
-    if accelerator is not None:
-        free_memory = getattr(accelerator, "free_memory", None)
-        if callable(free_memory):
-            try:
-                free_memory()
-            except Exception:
-                pass
-
-    model = getattr(trainer, "model", None)
-    if model is not None:
-        try:
-            model.to("cpu")
-        except Exception:
-            pass
-
-    for attr_name in (
-        "model",
-        "model_wrapped",
-        "optimizer",
-        "lr_scheduler",
-        "train_dataset",
-        "eval_dataset",
-        "_signature_columns",
-        "_train_batch_size",
-        "_raw_eval_examples",
-        "_postprocess_eval_examples",
-        "_postprocess_eval_features",
-    ):
-        if hasattr(trainer, attr_name):
-            setattr(trainer, attr_name, None)
-
-    callback_handler = getattr(trainer, "callback_handler", None)
-    if callback_handler is not None and hasattr(callback_handler, "callbacks"):
-        callback_handler.callbacks = []
 
 
 def utc_ts() -> float:

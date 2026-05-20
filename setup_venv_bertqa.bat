@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
-set "REQ_FILE=%SCRIPT_DIR%\src\qa_hf_package\requirements.txt"
+set "REQ_FILE=%SCRIPT_DIR%\requirements.txt"
 set "VENV_DIR=%SCRIPT_DIR%\.venv_bertqa"
 
 if not exist "%REQ_FILE%" (
@@ -43,6 +43,8 @@ if errorlevel 1 exit /b 1
 
 echo Installing pinned requirements from "%REQ_FILE%"
 python -m pip install --upgrade pip setuptools wheel
+if errorlevel 1 exit /b 1
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
 if errorlevel 1 exit /b 1
 python -m pip install -r "%REQ_FILE%"
 if errorlevel 1 exit /b 1

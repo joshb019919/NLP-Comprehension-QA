@@ -165,134 +165,93 @@ run_exp() {
   post_run_verification "$name"
 }
 
-# 1. BERT-base, TriviaQA -> tested on SQuAD 1.1, lr 5e-5, wd 1e-8, 2 ep, adamw_torch, clip 1.0
-run_exp "exp01_bertbase_triviaqa_to_squad11_lr5e5_wd1e8_ep2_adamw_clip1p0" "configs/runs/bert_trivia_qa_rc.json" \
-  --set "model.model_name_or_path=bert-base-uncased"   \
-  --set "dataset.test_dataset_name=rajpurkar/squad"    \
-  --set "dataset.test_dataset_config_name=null"        \
-  --set "dataset.test_version_2_with_negative=false"   \
-  --set "dataset.test_split=validation"                \
-  --set "run.learning_rate=5e-5"                       \
-  --set "run.weight_decay=1e-8"                        \
-  --set "run.epochs=2"                                 \
-  --set "run.optim=adamw_torch_fused"                  \
-  --set "run.max_grad_norm=1.0"
+# ======================= #
+# Saves best model at end #
+# ======================= #
+
+# 1. BERT-base, TriviaQA -> tested on SQuAD 1.1
+run_exp "exp01_bert_triviaqa" "configs/runs/bert_trivia_qa_rc.json"               \
+  --set "model.model_name_or_path=bert-base-uncased"                                       \
+  --set "dataset.test_dataset_name=rajpurkar/squad"                                        \
+  --set "dataset.test_dataset_config_name=null"                                            \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"           
 
 # 2. clip 0.5
-run_exp "exp02_bertbase_triviaqa_to_squad11_lr5e5_wd1e8_ep2_adamw_clip0p5" "configs/runs/bert_trivia_qa_rc.json" \
-  --set "model.model_name_or_path=bert-base-uncased"   \
-  --set "dataset.test_dataset_name=rajpurkar/squad"    \
-  --set "dataset.test_dataset_config_name=null"        \
-  --set "dataset.test_version_2_with_negative=false"   \
-  --set "dataset.test_split=validation"                \
-  --set "run.learning_rate=5e-5"                       \
-  --set "run.weight_decay=1e-8"                        \
-  --set "run.epochs=2"                                 \
-  --set "run.optim=adamw_torch_fused"                  \
+run_exp "exp02_bert_triviaqa_clip0_5" "configs/runs/bert_trivia_qa_rc.json"       \
+  --set "model.model_name_or_path=bert-base-uncased"                                       \
+  --set "dataset.test_dataset_name=rajpurkar/squad"                                        \
+  --set "dataset.test_dataset_config_name=null"                                            \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"                                                    \
   --set "run.max_grad_norm=0.5"
 
 # 3. no clipping -> max_grad_norm=0 disables clipping
-run_exp "exp03_bertbase_triviaqa_to_squad11_lr5e5_wd1e8_ep2_adamw_noclip" "configs/runs/bert_trivia_qa_rc.json" \
-  --set "model.model_name_or_path=bert-base-uncased"   \
-  --set "dataset.test_dataset_name=rajpurkar/squad"    \
-  --set "dataset.test_dataset_config_name=null"        \
-  --set "dataset.test_version_2_with_negative=false"   \
-  --set "dataset.test_split=validation"                \
-  --set "run.learning_rate=5e-5"                       \
-  --set "run.weight_decay=1e-8"                        \
-  --set "run.epochs=2"                                 \
-  --set "run.optim=adamw_torch_fused"                  \
+run_exp "exp03_bert_triviaqa_noclip" "configs/runs/bert_trivia_qa_rc.json"        \
+  --set "model.model_name_or_path=bert-base-uncased"                                       \
+  --set "dataset.test_dataset_name=rajpurkar/squad"                                        \
+  --set "dataset.test_dataset_config_name=null"                                            \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"                                                    \
   --set "run.max_grad_norm=0"
 
 # 4. "sgd with momentum 0.9" optimizer
-run_exp "exp04_bertbase_triviaqa_to_squad11_lr5e5_wd1e8_ep2_defaultoptim_clip1p0" "configs/runs/bert_trivia_qa_rc.json" \
-  --set "model.model_name_or_path=bert-base-uncased"   \
-  --set "dataset.test_dataset_name=rajpurkar/squad"    \
-  --set "dataset.test_dataset_config_name=null"        \
-  --set "dataset.test_version_2_with_negative=false"   \
-  --set "dataset.test_split=validation"                \
-  --set "run.learning_rate=5e-5"                       \
-  --set "run.weight_decay=1e-8"                        \
-  --set "run.epochs=2"                                 \
-  --set "run.optim=sgd"                                \
-  --set "run.max_grad_norm=1.0"
+run_exp "exp04_bert_triviaqa_sgd" "configs/runs/bert_trivia_qa_rc.json"           \
+  --set "model.model_name_or_path=bert-base-uncased"                                       \
+  --set "dataset.test_dataset_name=rajpurkar/squad"                                        \
+  --set "dataset.test_dataset_config_name=null"                                            \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"                                                    \
+  --set "run.optim=sgd"                                                 \
 
 # 5. 3 epochs
-run_exp "exp05_bertbase_triviaqa_to_squad11_lr5e5_wd1e8_ep3_adamw_clip1p0" "configs/runs/bert_trivia_qa_rc.json" \
-  --set "model.model_name_or_path=bert-base-uncased"   \
-  --set "dataset.test_dataset_name=rajpurkar/squad"    \
-  --set "dataset.test_dataset_config_name=null"        \
-  --set "dataset.test_version_2_with_negative=false"   \
-  --set "dataset.test_split=validation"                \
-  --set "run.learning_rate=5e-5"                       \
-  --set "run.weight_decay=1e-8"                        \
-  --set "run.epochs=3"                                 \
-  --set "run.optim=adamw_torch_fused"                  \
-  --set "run.max_grad_norm=1.0"
+run_exp "exp05_bert_triviaqa_3epochs" "configs/runs/bert_trivia_qa_rc.json"       \
+  --set "model.model_name_or_path=bert-base-uncased"                                       \
+  --set "dataset.test_dataset_name=rajpurkar/squad"                                        \
+  --set "dataset.test_dataset_config_name=null"                                            \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"                                                    \
+  --set "run.epochs=3"
 
 # 6. wd 1e-7
-run_exp "exp06_bertbase_triviaqa_to_squad11_lr5e5_wd1e7_ep2_adamw_clip1p0" "configs/runs/bert_trivia_qa_rc.json" \
-  --set "model.model_name_or_path=bert-base-uncased"   \
-  --set "dataset.test_dataset_name=rajpurkar/squad"    \
-  --set "dataset.test_dataset_config_name=null"        \
-  --set "dataset.test_version_2_with_negative=false"   \
-  --set "dataset.test_split=validation"                \
-  --set "run.learning_rate=5e-5"                       \
-  --set "run.weight_decay=1e-7"                        \
-  --set "run.epochs=2"                                 \
-  --set "run.optim=adamw_torch_fused"                  \
-  --set "run.max_grad_norm=1.0"
+run_exp "exp06_bert_triviaqa_wd1e-7" "configs/runs/bert_trivia_qa_rc.json"        \
+  --set "model.model_name_or_path=bert-base-uncased"                                       \
+  --set "dataset.test_dataset_name=rajpurkar/squad"                                        \
+  --set "dataset.test_dataset_config_name=null"                                            \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"                                                    \
+  --set "run.weight_decay=1e-7"
 
 # 7. lr 5e-3, wd 1e-5
-run_exp "exp07_bertbase_triviaqa_to_squad11_lr5e3_wd1e5_ep2_adamw_clip1p0" "configs/runs/bert_trivia_qa_rc.json" \
-  --set "model.model_name_or_path=bert-base-uncased"   \
-  --set "dataset.test_dataset_name=rajpurkar/squad"    \
-  --set "dataset.test_dataset_config_name=null"        \
-  --set "dataset.test_version_2_with_negative=false"   \
-  --set "dataset.test_split=validation"                \
-  --set "run.learning_rate=5e-3"                       \
-  --set "run.weight_decay=1e-5"                        \
-  --set "run.epochs=2"                                 \
-  --set "run.optim=adamw_torch_fused"                  \
-  --set "run.max_grad_norm=1.0"
+run_exp "exp07_bert_triviaqa_lr5e-4_wd1e-7" "configs/runs/bert_trivia_qa_rc.json" \
+  --set "model.model_name_or_path=bert-base-uncased"                                       \
+  --set "dataset.test_dataset_name=rajpurkar/squad"                                        \
+  --set "dataset.test_dataset_config_name=null"                                            \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"                                                    \
+  --set "run.learning_rate=5e-4"                                                           \
+  --set "run.weight_decay=1e-7"
 
 # 8. BERT-base tuned on SQuAD 2.0, tested on TriviaQA
-run_exp "exp08_bertbase_squad20_lr5e5_wd1e8_ep2_adamw_clip1p0" "configs/runs/bert_squad_v2.json" \
-  --set "model.model_name_or_path=bert-base-uncased"      \
-  --set "dataset.test_dataset_name=mandarjoshi/trivia_qa" \
-  --set "dataset.test_dataset_config_name=rc"             \
-  --set "dataset.test_version_2_with_negative=false"      \
-  --set "dataset.test_split=validation"                   \
-  --set "run.learning_rate=5e-5"                          \
-  --set "run.weight_decay=1e-8"                           \
-  --set "run.epochs=2"                                    \
-  --set "run.optim=adamw_torch_fused"                     \
-  --set "run.max_grad_norm=1.0"                           \
-  --set "dataset.null_score_diff_threshold=-2.0"
+run_exp "exp08_bert_sqaud2" "configs/runs/bert_squad_v2.json"                     \
+  --set "model.model_name_or_path=bert-base-uncased"                                       \
+  --set "dataset.test_dataset_name=mandarjoshi/trivia_qa"                                  \
+  --set "dataset.test_dataset_config_name=rc"                                              \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"
 
 # 9. DistilBERT, TriviaQA -> tested on SQuAD 1.1
-run_exp "exp9_distilbert_triviaqa_to_squad11_lr5e5_wd1e8_ep2_adamw_clip1p0" "configs/runs/distilbert_trivia_qa_rc.json" \
-  --set "model.model_name_or_path=distilbert-base-uncased" \
-  --set "dataset.test_dataset_name=rajpurkar/squad"        \
-  --set "dataset.test_dataset_config_name=null"            \
-  --set "dataset.test_version_2_with_negative=false"       \
-  --set "dataset.test_split=validation"                    \
-  --set "run.learning_rate=5e-5"                           \
-  --set "run.weight_decay=1e-8"                            \
-  --set "run.epochs=2"                                     \
-  --set "run.optim=adamw_torch_fused"                      \
-  --set "run.max_grad_norm=1.0"                            
+run_exp "exp9_distilbert_triviaqa" "configs/runs/distilbert_trivia_qa_rc.json"    \
+  --set "model.model_name_or_path=distilbert-base-uncased"                                 \
+  --set "dataset.test_dataset_name=rajpurkar/squad"                                        \
+  --set "dataset.test_dataset_config_name=null"                                            \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"
 
 # 10. DistilBERT tuned on SQuAD 2.0, tested on TriviaQA
-run_exp "exp10_distilbert_squad20_lr5e5_wd1e8_ep2_adamw_clip1p0" "configs/runs/distilbert_squad_v2.json" \
-  --set "model.model_name_or_path=distilbert-base-uncased" \
-  --set "dataset.test_dataset_name=mandarjoshi/trivia_qa"  \
-  --set "dataset.test_dataset_config_name=rc"              \
-  --set "dataset.test_version_2_with_negative=false"       \
-  --set "dataset.test_split=validation"                    \
-  --set "run.learning_rate=5e-5"                           \
-  --set "run.weight_decay=1e-8"                            \
-  --set "run.epochs=2"                                     \
-  --set "run.optim=adamw_torch_fused"                      \
-  --set "run.max_grad_norm=1.0"                            \
-  --set "dataset.null_score_diff_threshold=-2.0"
+run_exp "exp10_distilbert_squad20" "configs/runs/distilbert_squad_v2.json"        \
+  --set "model.model_name_or_path=distilbert-base-uncased"                                 \
+  --set "dataset.test_dataset_name=mandarjoshi/trivia_qa"                                  \
+  --set "dataset.test_dataset_config_name=rc"                                              \
+  --set "dataset.test_version_2_with_negative=false"                                       \
+  --set "dataset.test_split=validation"

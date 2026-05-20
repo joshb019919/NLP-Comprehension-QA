@@ -1,0 +1,11 @@
+# Core numerical and plotting dependencies
+numpy==2.4.4
+matplotlib==3.10.8
+
+# Deep learning and Hugging Face stack
+# Install PyTorch separately from the CUDA wheel index, for example:
+# torch==2.11.0 via https://download.pytorch.org/whl/cu130
+transformers==5.5.4
+datasets==4.8.4
+evaluate==0.4.6
+accelerate==1.13.0

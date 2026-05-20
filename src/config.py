@@ -68,7 +68,7 @@ class RunConfig(Config):
     # dataloader_num_workers: int = 0  # Set for less RAM, debugging
     dataloader_pin_memory: bool = True
     dataloader_drop_last: bool = False
-    dataloader_persistent_workers: bool = True if dataloader_num_workers > 0 else False
+    dataloader_persistent_workers: bool = True
     dataloader_prefetch_factor: int | None = 8 if dataloader_num_workers > 0 else 1
 
     # Optional cap on the number of tokenized features kept after map().

@@ -11,7 +11,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from common import atomic_save_json, configure_runtime, maybe_set_process_memory_limit, release_memory, teardown_trainer
+from common import atomic_save_json, configure_runtime, maybe_set_process_memory_limit
 from config import load_app_config, load_json
 from evaluation import run_postprocessed_eval
 from paths import get_run_paths
@@ -155,8 +155,6 @@ def main() -> None:
             prefer_full_triviaqa_tokenized_cache=config.run.prefer_full_triviaqa_tokenized_cache,
             keep_in_memory=config.dataset.keep_in_memory,
         )
-        release_memory()
-
         if valid_dataset_name == "mandarjoshi/trivia_qa":
             removable = [c for c in ["example_id", "offset_mapping", "question_id"] if c in valid_features_for_postprocess.column_names]
             valid_features_for_predict = valid_features_for_postprocess.remove_columns(removable)
@@ -212,23 +210,14 @@ def main() -> None:
             eval_examples=valid_examples,
             eval_features_for_postprocess=valid_features_for_postprocess,
             prefix="eval",
+            output_path=output_dir,
         )
         overwrite_eval_outputs(output_dir, eval_metrics)
 
         print(f"Validation-only metrics written to {output_dir}")
         print(eval_metrics)
     finally:
-        teardown_trainer(trainer)
-        trainer = None
-        model = None
-        tokenizer = None
-        data_collator = None
-        valid_features_for_predict = None
-        raw_valid = None
-        valid_examples = None
-        valid_features_for_postprocess = None
-        release_memory()
-        release_memory()
+        pass
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from common import atomic_save_json, configure_runtime, maybe_set_process_memory_limit, release_memory, teardown_trainer
+from common import atomic_save_json, configure_runtime, maybe_set_process_memory_limit
 from config import load_app_config, load_json
 from evaluation import run_postprocessed_eval
 from paths import get_run_paths
@@ -158,8 +158,6 @@ def main() -> None:
             prefer_full_triviaqa_tokenized_cache=config.run.prefer_full_triviaqa_tokenized_cache,
             keep_in_memory=config.dataset.keep_in_memory,
         )
-        release_memory()
-
         if test_dataset_name == "mandarjoshi/trivia_qa":
             removable = [c for c in ["example_id", "offset_mapping", "question_id"] if c in test_features_for_postprocess.column_names]
             test_features_for_predict = test_features_for_postprocess.remove_columns(removable)
@@ -221,17 +219,7 @@ def main() -> None:
         print(f"Test-only metrics written to {output_dir}")
         print(test_metrics)
     finally:
-        teardown_trainer(trainer)
-        trainer = None
-        model = None
-        tokenizer = None
-        data_collator = None
-        test_features_for_predict = None
-        raw_test = None
-        test_examples = None
-        test_features_for_postprocess = None
-        release_memory()
-        release_memory()
+        pass
 
 
 if __name__ == "__main__":
